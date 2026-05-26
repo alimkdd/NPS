@@ -3,7 +3,7 @@ using NewsletterPreferences.Application.DTOs;
 
 namespace NewsletterPreferences.Application.Validators;
 
-internal class UpsertSubscriptionRequestValidator : AbstractValidator<UpsertSubscriptionRequest>
+public class UpsertSubscriptionRequestValidator : AbstractValidator<UpsertSubscriptionRequest>
 {
     public UpsertSubscriptionRequestValidator()
     {

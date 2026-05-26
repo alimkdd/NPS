@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\NewsletterPreferences.Api\NewsletterPreferences.Api.csproj" />
+    <ProjectReference Include="..\..\NewsletterPreferences.Application\NewsletterPreferences.Application.csproj" />
+    <ProjectReference Include="..\..\NewsletterPreferences.Infrastructure\NewsletterPreferences.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
