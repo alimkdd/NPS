@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="NewsletterPreferences.Api/NewsletterPreferences.Api.csproj" />
+  <Project Path="NewsletterPreferences.Application/NewsletterPreferences.Application.csproj" />
+  <Project Path="NewsletterPreferences.Domain/NewsletterPreferences.Domain.csproj" />
+  <Project Path="NewsletterPreferences.Infrastructure/NewsletterPreferences.Infrastructure.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/NewsletterPreferences.Api.Tests/NewsletterPreferences.Api.Tests.csproj" />
+    <Project Path="tests/NewsletterPreferences.Application.Tests/NewsletterPreferences.Application.Tests.csproj" />
+  </Folder>
+</Solution>
