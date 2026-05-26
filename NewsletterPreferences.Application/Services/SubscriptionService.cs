@@ -1,0 +1,170 @@
+using FluentValidation;
+using NewsletterPreferences.Application.Common;
+using NewsletterPreferences.Application.DTOs;
+using NewsletterPreferences.Domain.Entities;
+using NewsletterPreferences.Domain.Interfaces;
+using NewsletterPreferences.Domain.ValueObjects;
+
+namespace NewsletterPreferences.Application.Services;
+
+public class SubscriptionService(
+    ISubscriptionRepository subscriptionRepository,
+    ILookupRepository lookupRepository,
+    IUnitOfWork unitOfWork,
+    IValidator<UpsertSubscriptionRequest> validator) : ISubscriptionService
+{
+    public async Task<Result<UpsertSubscriptionResult>> UpsertAsync(
+        UpsertSubscriptionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validationResult = await validator.ValidateAsync(request, cancellationToken);
+        if (!validationResult.IsValid)
+            return Result<UpsertSubscriptionResult>.ValidationFailure(
+                validationResult.Errors.Select(e => e.ErrorMessage).ToList());
+
+        var allPrefs = await lookupRepository.GetCommunicationPreferencesAsync(cancellationToken);
+        var selectedCodes = allPrefs
+            .Where(p => request.CommunicationPreferenceIds.Contains(p.Id))
+            .Select(p => p.Code)
+            .ToHashSet();
+
+        var conditionalErrors = new List<string>();
+
+        if ((selectedCodes.Contains("PHONE") || selectedCodes.Contains("SMS"))
+            && string.IsNullOrWhiteSpace(request.PhoneNumber))
+            conditionalErrors.Add("Phone number is required when Phone or SMS is selected.");
+
+        if (selectedCodes.Contains("POST") && string.IsNullOrWhiteSpace(request.PostalAddress))
+            conditionalErrors.Add("Postal address is required when Post is selected.");
+
+        if (conditionalErrors.Count > 0)
+            return Result<UpsertSubscriptionResult>.ValidationFailure(conditionalErrors);
+
+        if (!await lookupRepository.SubscriberTypeExistsAsync(request.SubscriberTypeId, cancellationToken))
+            return Result<UpsertSubscriptionResult>.ValidationFailure(["Invalid subscriber type."]);
+
+        if (!await lookupRepository.AllCommunicationPreferencesExistAsync(request.CommunicationPreferenceIds, cancellationToken))
+            return Result<UpsertSubscriptionResult>.ValidationFailure(["One or more communication preferences are invalid."]);
+
+        if (!await lookupRepository.AllInterestsExistAsync(request.InterestIds, cancellationToken))
+            return Result<UpsertSubscriptionResult>.ValidationFailure(["One or more newsletter interests are invalid."]);
+
+        Email email;
+        try { email = Email.Create(request.Email); }
+        catch (ArgumentException ex)
+        {
+            return Result<UpsertSubscriptionResult>.ValidationFailure([ex.Message]);
+        }
+
+        var existing = await subscriptionRepository.GetByEmailAsync(email.Value, cancellationToken);
+        bool isUpdate = existing is not null;
+        Guid subscriptionId;
+
+        if (isUpdate)
+        {
+            existing!.UpdatePreferences(
+                request.FirstName, request.LastName, request.Organisation,
+                request.SubscriberTypeId, request.PhoneNumber, request.PostalAddress,
+                request.CommunicationPreferenceIds, request.InterestIds);
+
+            await subscriptionRepository.UpdateAsync(existing, cancellationToken);
+            subscriptionId = existing.Id;
+        }
+        else
+        {
+            var subscription = Subscription.Create(
+                request.FirstName, request.LastName, email, request.Organisation,
+                request.SubscriberTypeId, request.PhoneNumber, request.PostalAddress,
+                request.ConsentGiven, request.CommunicationPreferenceIds, request.InterestIds);
+
+            await subscriptionRepository.AddAsync(subscription, cancellationToken);
+            subscriptionId = subscription.Id;
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<UpsertSubscriptionResult>.Success(new UpsertSubscriptionResult
+        {
+            SubscriptionId = subscriptionId,
+            IsUpdate = isUpdate
+        });
+    }
+
+    public async Task<Result<SubscriptionResponse>> GetByIdAsync(
+        Guid id, CancellationToken cancellationToken = default)
+    {
+        var subscription = await subscriptionRepository.GetByIdAsync(id, cancellationToken);
+
+        return subscription is null
+            ? Result<SubscriptionResponse>.Failure("Subscription not found.")
+            : Result<SubscriptionResponse>.Success(MapToResponse(subscription));
+    }
+
+    public async Task<Result<PagedResult<SubscriptionResponse>>> GetPagedAsync(
+        SubscriptionFilterRequest filter, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(filter.Page, 1);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+
+        var (items, totalCount) = await subscriptionRepository.GetPagedAsync(
+            filter.SearchTerm,
+            filter.SubscriberTypeId,
+            filter.CommunicationPreferenceId,
+            filter.InterestId,
+            page, pageSize,
+            cancellationToken);
+
+        var responses = items.Select(MapToResponse).ToList();
+
+        return Result<PagedResult<SubscriptionResponse>>.Success(
+            new PagedResult<SubscriptionResponse>(responses, totalCount, page, pageSize));
+    }
+
+    public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var subscription = await subscriptionRepository.GetByIdAsync(id, cancellationToken);
+
+        if (subscription is null)
+            return Result.Failure("Subscription not found.");
+
+        await subscriptionRepository.DeleteAsync(subscription, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    private static SubscriptionResponse MapToResponse(Subscription s) => new()
+    {
+        Id = s.Id,
+        FirstName = s.FirstName,
+        LastName = s.LastName,
+        Email = s.Email.Value,
+        Organisation = s.Organisation,
+        SubscriberType = new LookupItemResponse
+        {
+            Id = s.SubscriberType.Id,
+            Name = s.SubscriberType.Name,
+            Code = s.SubscriberType.Code
+        },
+        CommunicationPreferences = s.CommunicationPreferences
+            .Select(scp => new LookupItemResponse
+            {
+                Id = scp.CommunicationPreference.Id,
+                Name = scp.CommunicationPreference.Name,
+                Code = scp.CommunicationPreference.Code
+            }).ToList(),
+        Interests = s.Interests
+            .Select(si => new LookupItemResponse
+            {
+                Id = si.NewsletterInterest.Id,
+                Name = si.NewsletterInterest.Name,
+                Code = si.NewsletterInterest.Code
+            }).ToList(),
+        PhoneNumber = s.PhoneNumber,
+        PostalAddress = s.PostalAddress,
+        ConsentGiven = s.ConsentGiven,
+        ConsentTimestamp = s.ConsentTimestamp,
+        CreatedAt = s.CreatedAt,
+        UpdatedAt = s.UpdatedAt
+    };
+}

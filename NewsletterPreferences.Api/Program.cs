@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using NewsletterPreferences.Api.Filters;
+using NewsletterPreferences.Api.Middleware;
 using NewsletterPreferences.Application;
 using NewsletterPreferences.Infrastructure;
 using NewsletterPreferences.Infrastructure.Persistence;
@@ -8,6 +10,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+builder.Services.AddScoped<AdminKeyAuthFilter>();
+
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -41,6 +48,8 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
