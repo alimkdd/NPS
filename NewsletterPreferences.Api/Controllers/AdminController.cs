@@ -22,6 +22,13 @@ public class AdminController(ISubscriptionService subscriptionService) : Control
         return Ok(result.Value);
     }
 
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats(CancellationToken cancellationToken)
+    {
+        var stats = await subscriptionService.GetStatsAsync(cancellationToken);
+        return Ok(stats);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {

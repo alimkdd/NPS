@@ -134,6 +134,9 @@ public class SubscriptionService(
         return Result.Success();
     }
 
+    public Task<SubscriptionStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default) =>
+        subscriptionReadRepository.GetStatsAsync(cancellationToken);
+
     public async Task<Result> UnsubscribeAsync(
         UnsubscribeRequest request, CancellationToken cancellationToken = default)
     {

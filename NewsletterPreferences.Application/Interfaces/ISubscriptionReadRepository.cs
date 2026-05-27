@@ -14,4 +14,6 @@ public interface ISubscriptionReadRepository
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    Task<SubscriptionStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default);
 }

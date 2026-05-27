@@ -5,6 +5,7 @@ using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Infrastructure.Persistence;
 using System.Linq.Expressions;
 
+
 namespace NewsletterPreferences.Infrastructure.Repositories;
 
 public class SubscriptionReadRepository(AppDbContext context) : ISubscriptionReadRepository
@@ -97,5 +98,25 @@ public class SubscriptionReadRepository(AppDbContext context) : ISubscriptionRea
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    public async Task<SubscriptionStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var sevenDaysAgo = now.AddDays(-7);
+        var thirtyDaysAgo = now.AddDays(-30);
+
+        var query = context.Subscriptions.AsNoTracking();
+
+        var totalActive = await query.CountAsync(cancellationToken);
+        var last7 = await query.CountAsync(s => s.CreatedAt >= sevenDaysAgo, cancellationToken);
+        var last30 = await query.CountAsync(s => s.CreatedAt >= thirtyDaysAgo, cancellationToken);
+
+        return new SubscriptionStatsResponse
+        {
+            TotalActive = totalActive,
+            NewLast7Days = last7,
+            NewLast30Days = last30,
+        };
     }
 }

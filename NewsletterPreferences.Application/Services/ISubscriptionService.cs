@@ -10,4 +10,5 @@ public interface ISubscriptionService
     Task<Result<PagedResult<SubscriptionResponse>>> GetPagedAsync(SubscriptionFilterRequest filter, CancellationToken cancellationToken = default);
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Result> UnsubscribeAsync(UnsubscribeRequest request, CancellationToken cancellationToken = default);
+    Task<SubscriptionStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default);
 }
