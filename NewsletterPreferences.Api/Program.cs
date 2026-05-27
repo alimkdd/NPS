@@ -5,8 +5,20 @@ using NewsletterPreferences.Api.Middleware;
 using NewsletterPreferences.Application;
 using NewsletterPreferences.Infrastructure;
 using NewsletterPreferences.Infrastructure.Persistence;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithEnvironmentName()
+        .Enrich.WithProperty("Application", "NewsletterPreferences.Api");
+});
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -33,7 +45,8 @@ builder.Services.AddCors(options =>
 
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .WithExposedHeaders(CorrelationIdMiddleware.HeaderName);
     });
 });
 
@@ -48,6 +61,18 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+app.UseCorrelationId();
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+    {
+        diagnosticContext.Set("CorrelationId", httpContext.GetCorrelationId());
+        diagnosticContext.Set("ClientIP", httpContext.Connection.RemoteIpAddress?.ToString());
+        diagnosticContext.Set("UserAgent", httpContext.Request.Headers.UserAgent.ToString());
+    };
+});
 
 app.UseExceptionHandler();
 
@@ -71,6 +96,19 @@ using (var scope = app.Services.CreateScope())
         await db.Database.MigrateAsync();
 }
 
-app.Run();
+try
+{
+    Log.Information("Starting Newsletter Preferences API in {Environment} mode", app.Environment.EnvironmentName);
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 public partial class Program { }
