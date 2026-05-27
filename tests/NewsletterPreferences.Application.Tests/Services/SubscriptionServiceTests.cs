@@ -4,6 +4,7 @@ using FluentValidation.Results;
 using Moq;
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Application.Services;
 using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Domain.Interfaces;
@@ -14,6 +15,7 @@ namespace NewsletterPreferences.Application.Tests.Services;
 public class SubscriptionServiceTests
 {
     private readonly Mock<ISubscriptionRepository> _subscriptionRepo = new();
+    private readonly Mock<ISubscriptionReadRepository> _subscriptionReadRepo = new();
     private readonly Mock<ILookupRepository> _lookupRepo = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
     private readonly Mock<IValidator<UpsertSubscriptionRequest>> _validator = new();
@@ -31,6 +33,7 @@ public class SubscriptionServiceTests
     {
         _sut = new SubscriptionService(
             _subscriptionRepo.Object,
+            _subscriptionReadRepo.Object,
             _lookupRepo.Object,
             _unitOfWork.Object,
             _validator.Object);
@@ -254,8 +257,8 @@ public class SubscriptionServiceTests
     [Fact]
     public async Task GetByIdAsync_WhenSubscriptionNotFound_ReturnsFailure()
     {
-        _subscriptionRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Subscription?)null);
+        _subscriptionReadRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SubscriptionResponse?)null);
 
         var result = await _sut.GetByIdAsync(Guid.NewGuid(), CancellationToken.None);
 
@@ -264,16 +267,24 @@ public class SubscriptionServiceTests
     }
 
     [Fact]
-    public async Task GetByIdAsync_WhenSubscriptionExists_ReturnsSuccessWithMappedResponse()
+    public async Task GetByIdAsync_WhenSubscriptionExists_ReturnsSuccessWithResponse()
     {
-        var subscription = BuildSubscriptionWithNavigations("jane@example.com");
-        _subscriptionRepo.Setup(r => r.GetByIdAsync(subscription.Id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(subscription);
+        var id = Guid.NewGuid();
+        var dto = new SubscriptionResponse
+        {
+            Id = id,
+            FirstName = "Jane",
+            LastName = "Doe",
+            Email = "jane@example.com",
+            SubscriberType = new LookupItemResponse { Id = 1, Name = "Home Buyer", Code = "HOME_BUYER" }
+        };
+        _subscriptionReadRepo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(dto);
 
-        var result = await _sut.GetByIdAsync(subscription.Id, CancellationToken.None);
+        var result = await _sut.GetByIdAsync(id, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value!.Id.Should().Be(subscription.Id);
+        result.Value!.Id.Should().Be(id);
         result.Value.Email.Should().Be("jane@example.com");
         result.Value.FirstName.Should().Be("Jane");
     }
@@ -283,9 +294,8 @@ public class SubscriptionServiceTests
     [Fact]
     public async Task GetPagedAsync_ReturnsPagedResultWithCorrectMetadata()
     {
-        var subscription = BuildSubscriptionWithNavigations();
-        IReadOnlyList<Subscription> items = [subscription];
-        _subscriptionRepo.Setup(r => r.GetPagedAsync(
+        IReadOnlyList<SubscriptionResponse> items = [new SubscriptionResponse { Id = Guid.NewGuid() }];
+        _subscriptionReadRepo.Setup(r => r.GetPagedAsync(
                 It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(),
                 It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((items, 1));
@@ -303,8 +313,8 @@ public class SubscriptionServiceTests
     [Fact]
     public async Task GetPagedAsync_ClampsPageSizeAbove100()
     {
-        IReadOnlyList<Subscription> items = [];
-        _subscriptionRepo.Setup(r => r.GetPagedAsync(
+        IReadOnlyList<SubscriptionResponse> items = [];
+        _subscriptionReadRepo.Setup(r => r.GetPagedAsync(
                 It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(),
                 1, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync((items, 0));
@@ -313,7 +323,7 @@ public class SubscriptionServiceTests
         var result = await _sut.GetPagedAsync(filter, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        _subscriptionRepo.Verify(r => r.GetPagedAsync(
+        _subscriptionReadRepo.Verify(r => r.GetPagedAsync(
             It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(),
             1, 100, It.IsAny<CancellationToken>()), Times.Once);
     }

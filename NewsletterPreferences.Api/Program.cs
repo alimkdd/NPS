@@ -42,6 +42,11 @@ if (!builder.Environment.IsEnvironment("Test"))
         ?? Path.Combine(builder.Environment.ContentRootPath, "keys")));
 }
 
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 1024;
+});
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 

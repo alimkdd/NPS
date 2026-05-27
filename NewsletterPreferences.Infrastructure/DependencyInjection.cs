@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Interfaces;
 using NewsletterPreferences.Infrastructure.Persistence;
 using NewsletterPreferences.Infrastructure.Repositories;
@@ -20,6 +21,7 @@ public static class DependencyInjection
 
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
+        services.AddScoped<ISubscriptionReadRepository, SubscriptionReadRepository>();
         services.AddScoped<ILookupRepository, LookupRepository>();
         services.AddScoped<IAdminAuditLogRepository, AdminAuditLogRepository>();
 

@@ -27,6 +27,10 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
             .IsUnique()
             .HasFilter("[IsDeleted] = 0");
 
+        builder.HasIndex(s => s.CreatedAt)
+            .HasDatabaseName("IX_Subscriptions_CreatedAt_Live")
+            .HasFilter("[IsDeleted] = 0");
+
         builder.Property(s => s.Organisation).HasMaxLength(255);
         builder.Property(s => s.PhoneNumber).HasMaxLength(500);
         builder.Property(s => s.PostalAddress).HasMaxLength(2000);

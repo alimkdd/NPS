@@ -1,6 +1,7 @@
 using FluentValidation;
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Domain.Interfaces;
 using NewsletterPreferences.Domain.ValueObjects;
@@ -9,6 +10,7 @@ namespace NewsletterPreferences.Application.Services;
 
 public class SubscriptionService(
     ISubscriptionRepository subscriptionRepository,
+    ISubscriptionReadRepository subscriptionReadRepository,
     ILookupRepository lookupRepository,
     IUnitOfWork unitOfWork,
     IValidator<UpsertSubscriptionRequest> validator) : ISubscriptionService
@@ -93,11 +95,11 @@ public class SubscriptionService(
     public async Task<Result<SubscriptionResponse>> GetByIdAsync(
         Guid id, CancellationToken cancellationToken = default)
     {
-        var subscription = await subscriptionRepository.GetByIdAsync(id, cancellationToken);
+        var response = await subscriptionReadRepository.GetByIdAsync(id, cancellationToken);
 
-        return subscription is null
+        return response is null
             ? Result<SubscriptionResponse>.Failure("Subscription not found.")
-            : Result<SubscriptionResponse>.Success(MapToResponse(subscription));
+            : Result<SubscriptionResponse>.Success(response);
     }
 
     public async Task<Result<PagedResult<SubscriptionResponse>>> GetPagedAsync(
@@ -106,7 +108,7 @@ public class SubscriptionService(
         var page = Math.Max(filter.Page, 1);
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
 
-        var (items, totalCount) = await subscriptionRepository.GetPagedAsync(
+        var (items, totalCount) = await subscriptionReadRepository.GetPagedAsync(
             filter.SearchTerm,
             filter.SubscriberTypeId,
             filter.CommunicationPreferenceId,
@@ -114,10 +116,8 @@ public class SubscriptionService(
             page, pageSize,
             cancellationToken);
 
-        var responses = items.Select(MapToResponse).ToList();
-
         return Result<PagedResult<SubscriptionResponse>>.Success(
-            new PagedResult<SubscriptionResponse>(responses, totalCount, page, pageSize));
+            new PagedResult<SubscriptionResponse>(items, totalCount, page, pageSize));
     }
 
     public async Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -157,39 +157,4 @@ public class SubscriptionService(
 
         return Result.Success();
     }
-
-    private static SubscriptionResponse MapToResponse(Subscription s) => new()
-    {
-        Id = s.Id,
-        FirstName = s.FirstName,
-        LastName = s.LastName,
-        Email = s.Email.Value,
-        Organisation = s.Organisation,
-        SubscriberType = new LookupItemResponse
-        {
-            Id = s.SubscriberType.Id,
-            Name = s.SubscriberType.Name,
-            Code = s.SubscriberType.Code
-        },
-        CommunicationPreferences = s.CommunicationPreferences
-            .Select(scp => new LookupItemResponse
-            {
-                Id = scp.CommunicationPreference.Id,
-                Name = scp.CommunicationPreference.Name,
-                Code = scp.CommunicationPreference.Code
-            }).ToList(),
-        Interests = s.Interests
-            .Select(si => new LookupItemResponse
-            {
-                Id = si.NewsletterInterest.Id,
-                Name = si.NewsletterInterest.Name,
-                Code = si.NewsletterInterest.Code
-            }).ToList(),
-        PhoneNumber = s.PhoneNumber,
-        PostalAddress = s.PostalAddress,
-        ConsentGiven = s.ConsentGiven,
-        ConsentTimestamp = s.ConsentTimestamp,
-        CreatedAt = s.CreatedAt,
-        UpdatedAt = s.UpdatedAt
-    };
 }
