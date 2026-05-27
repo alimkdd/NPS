@@ -127,7 +127,32 @@ public class SubscriptionService(
         if (subscription is null)
             return Result.Failure("Subscription not found.");
 
-        await subscriptionRepository.DeleteAsync(subscription, cancellationToken);
+        subscription.MarkAsDeleted();
+        await subscriptionRepository.UpdateAsync(subscription, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> UnsubscribeAsync(
+        UnsubscribeRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return Result.Failure("Subscription not found.");
+
+        Email email;
+        try { email = Email.Create(request.Email); }
+        catch (ArgumentException)
+        {
+            return Result.Failure("Subscription not found.");
+        }
+
+        var existing = await subscriptionRepository.GetByEmailAsync(email.Value, cancellationToken);
+        if (existing is null)
+            return Result.Failure("Subscription not found.");
+
+        existing.MarkAsDeleted();
+        await subscriptionRepository.UpdateAsync(existing, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Success();

@@ -23,13 +23,16 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
                 email => email.Value,
                 value => Email.Create(value));
 
-        builder.HasIndex(s => s.Email).IsUnique();
+        builder.HasIndex(s => s.Email)
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0");
 
         builder.Property(s => s.Organisation).HasMaxLength(255);
-        builder.Property(s => s.PhoneNumber).HasMaxLength(30);
-        builder.Property(s => s.PostalAddress).HasMaxLength(500);
+        builder.Property(s => s.PhoneNumber).HasMaxLength(500);
+        builder.Property(s => s.PostalAddress).HasMaxLength(2000);
         builder.Property(s => s.ConsentGiven).IsRequired();
         builder.Property(s => s.ConsentTimestamp).IsRequired();
+        builder.Property(s => s.IsDeleted).IsRequired();
         builder.Property(s => s.CreatedAt).IsRequired();
         builder.Property(s => s.UpdatedAt).IsRequired();
 

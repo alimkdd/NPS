@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using NewsletterPreferences.Api.Filters;
 using NewsletterPreferences.Application.DTOs;
 using NewsletterPreferences.Application.Services;
@@ -7,7 +8,9 @@ namespace NewsletterPreferences.Api.Controllers;
 
 [ApiController]
 [Route("api/admin/subscriptions")]
+[EnableRateLimiting("admin")]
 [ServiceFilter(typeof(AdminKeyAuthFilter))]
+[ServiceFilter(typeof(AdminAuditFilter))]
 public class AdminController(ISubscriptionService subscriptionService) : ControllerBase
 {
     [HttpGet]

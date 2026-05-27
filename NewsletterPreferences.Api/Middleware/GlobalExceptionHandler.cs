@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.EntityFrameworkCore;
 
 namespace NewsletterPreferences.Api.Middleware;
 
@@ -13,6 +14,8 @@ public class GlobalExceptionHandler(
     {
         var correlationId = httpContext.GetCorrelationId() ?? httpContext.TraceIdentifier;
         var timestamp = DateTime.UtcNow;
+        var sanitizedMessage = Sanitize(exception);
+        var sanitizedInner = exception.InnerException is null ? null : Sanitize(exception.InnerException);
 
         logger.LogError(exception,
             "Unhandled exception. CorrelationId={CorrelationId} Timestamp={Timestamp:o} " +
@@ -23,11 +26,11 @@ public class GlobalExceptionHandler(
             timestamp,
             httpContext.Request.Method,
             httpContext.Request.Path,
-            httpContext.Request.QueryString.Value,
+            QueryStringRedactor.Redact(httpContext.Request.QueryString.Value),
             exception.GetType().FullName,
-            exception.Message,
+            sanitizedMessage,
             exception.InnerException?.GetType().FullName,
-            exception.InnerException?.Message);
+            sanitizedInner);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
         httpContext.Response.ContentType = "application/json";
@@ -43,14 +46,14 @@ public class GlobalExceptionHandler(
         if (environment.IsDevelopment())
         {
             body["exceptionType"] = exception.GetType().FullName;
-            body["message"] = exception.Message;
+            body["message"] = sanitizedMessage;
             body["stackTrace"] = exception.StackTrace;
             if (exception.InnerException is { } inner)
             {
                 body["innerException"] = new
                 {
                     type = inner.GetType().FullName,
-                    message = inner.Message,
+                    message = sanitizedInner,
                     stackTrace = inner.StackTrace
                 };
             }
@@ -59,4 +62,10 @@ public class GlobalExceptionHandler(
         await httpContext.Response.WriteAsJsonAsync(body, cancellationToken);
         return true;
     }
+
+    private static string Sanitize(Exception ex) => ex switch
+    {
+        DbUpdateException => "Database update failed.",
+        _ => ex.Message
+    };
 }

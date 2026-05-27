@@ -17,6 +17,8 @@ public class Subscription : AuditableEntity
     public string? PostalAddress { get; private set; }
     public bool ConsentGiven { get; private set; }
     public DateTime ConsentTimestamp { get; private set; }
+    public bool IsDeleted { get; private set; }
+    public DateTime? DeletedAt { get; private set; }
 
     public SubscriberType SubscriberType { get; private set; } = null!;
     public IReadOnlyCollection<SubscriptionCommunicationPreference> CommunicationPreferences
@@ -92,5 +94,13 @@ public class Subscription : AuditableEntity
         _interests.Clear();
         foreach (var interestId in interestIds)
             _interests.Add(new SubscriptionInterest(Id, interestId));
+    }
+
+    public void MarkAsDeleted()
+    {
+        if (IsDeleted) return;
+        IsDeleted = true;
+        DeletedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
     }
 }

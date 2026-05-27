@@ -63,22 +63,25 @@ If you change `SA_PASSWORD` in `.env`, update the matching password in [Newslett
 
 All in [appsettings.json](NewsletterPreferences.Api/appsettings.json):
 
-| Key                            | Purpose                                                      |
-| ------------------------------ | ------------------------------------------------------------ |
-| `ConnectionStrings:DefaultConnection` | SQL Server connection string                          |
-| `AdminSettings:ApiKey`         | Value the admin endpoints expect in the `X-Admin-Key` header |
-| `Cors:AllowedOrigins`          | Array of frontend origins allowed by CORS                    |
+| Key                                    | Purpose                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `ConnectionStrings:DefaultConnection`  | SQL Server connection string                                     |
+| `AdminSettings:ApiKeyHash`             | Hex-encoded SHA-256 of the admin key; compared in constant time. |
+| `Cors:AllowedOrigins`                  | Array of frontend origins allowed by CORS                        |
+| `DataProtection:KeyPath`               | Directory used by ASP.NET Data Protection for its key ring (gitignored). Defaults to `keys/` next to the binary. |
+| `Serilog:*`                            | Serilog sink + level configuration.                              |
 
-The committed admin key is a placeholder (`change-this-in-production`). For any non-local deployment, override it via environment variable (`AdminSettings__ApiKey=...`) or user secrets — never commit a real one.
+The committed `ApiKeyHash` is the hash of the dev placeholder `nps-dev-admin-key-do-not-use-in-prod`. For any non-local deployment, override it via env var (`AdminSettings__ApiKeyHash=...`) — see the "Security & privacy" section below for the rotation snippet.
 
 ## API surface
 
 ### Public
 
-| Method | Route                  | Notes                                                   |
-| ------ | ---------------------- | ------------------------------------------------------- |
-| `POST` | `/api/subscriptions`   | Upsert by email. `201 Created` for new, `200 OK` (`IsUpdate=true`) for an existing email. Rate-limited (10 requests / minute / IP, fixed-window). |
-| `GET`  | `/api/lookups`         | Returns subscriber types, communication preferences, and newsletter interests for populating frontend dropdowns. |
+| Method | Route                              | Notes                                                   |
+| ------ | ---------------------------------- | ------------------------------------------------------- |
+| `POST` | `/api/subscriptions`               | Upsert by email. Always returns `202 Accepted` with `{ subscriptionId, correlationId, timestamp }` (identical shape for new + existing — no email-enumeration leak). Rate-limited (10/min/IP). |
+| `POST` | `/api/subscriptions/unsubscribe`   | Soft-deletes by email. Always returns `202 Accepted` with the same shape regardless of whether the email existed (no enumeration leak). Rate-limited (10/min/IP). |
+| `GET`  | `/api/lookups`                     | Returns subscriber types, communication preferences, and newsletter interests for populating frontend dropdowns. |
 
 ### Admin (header `X-Admin-Key: <key>`)
 
@@ -86,9 +89,20 @@ The committed admin key is a placeholder (`change-this-in-production`). For any 
 | -------- | ------------------------------------ | -------------------------------------------------- |
 | `GET`    | `/api/admin/subscriptions`           | Paged list. Query: `searchTerm`, `subscriberTypeId`, `communicationPreferenceId`, `interestId`, `page`, `pageSize` (clamped 1–100). |
 | `GET`    | `/api/admin/subscriptions/{id}`      | Get a single subscription.                         |
-| `DELETE` | `/api/admin/subscriptions/{id}`      | Hard delete.                                       |
+| `DELETE` | `/api/admin/subscriptions/{id}`      | **Soft delete** — sets `IsDeleted = true` + `DeletedAt`. Subsequent reads hide the row via a global query filter. |
 
-Without (or with a wrong) `X-Admin-Key`, admin endpoints return `401`.
+Without (or with a wrong) `X-Admin-Key`, admin endpoints return `401`. Every admin request is recorded in the `AdminAuditLogs` table (action, target id, correlation id, client IP, status code). Admin endpoints are rate-limited at 30/min/IP.
+
+The admin key is stored as a **SHA-256 hash** (`AdminSettings:ApiKeyHash`, hex-encoded) and compared in constant time. The default dev value hashes the key `nps-dev-admin-key-do-not-use-in-prod`. To rotate:
+
+```powershell
+# Pick a strong random key and compute its hash
+$key = "<your-new-key>"
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($key)
+-join ([System.Security.Cryptography.SHA256]::HashData($bytes) | ForEach-Object { $_.ToString('x2') })
+```
+
+Put the resulting hex in `AdminSettings:ApiKeyHash` (env var `AdminSettings__ApiKeyHash` in deployment). Keep the plaintext key secret — only the hash should ever live on disk.
 
 ## Validation
 
@@ -137,19 +151,50 @@ Captured in [CLAUDE.md](CLAUDE.md), in particular:
 
 ## Security & privacy
 
-The brief asks for senior-developer thinking, not a production system. What's in place:
+A self-audit and four hardening passes have been applied beyond the brief's defaults. What's in place:
 
-- **Admin key auth** on management endpoints (`AdminKeyAuthFilter` checks `X-Admin-Key`).
-- **Rate limiting** (fixed window, 10/min) on the public POST.
-- **CORS** locked to an explicit allow-list (`Cors:AllowedOrigins`).
-- **Global exception handler** returns a generic message — no stack traces leak.
-- **HTTPS redirection** enabled.
-- **Consent + timestamp** captured at creation; consent cannot be bypassed (`Subscription.Create` throws if `consentGiven` is false).
-- **Email normalisation** prevents accidental duplicates from casing/whitespace.
-- **No PII in logs** beyond what ASP.NET Core writes by default.
-- Connection-string password is intentionally local-dev only and lives in `appsettings.json` to keep setup easy. For deployment it should move to a secret store / env var.
+**AuthN / AuthZ**
+- Admin key stored as **SHA-256 hash** (`AdminSettings:ApiKeyHash`) and compared with `CryptographicOperations.FixedTimeEquals` — constant-time, no plaintext key on disk.
+- Admin auth filter, rate limit (30/min/IP), and audit-log filter applied to every admin endpoint via `[ServiceFilter]` chain.
 
-What I'd add for production: API-key hashing (current check is plain-string compare), structured audit logging on admin mutations, a soft-delete flag rather than hard delete, and a proper unsubscribe / data-export flow for GDPR.
+**Transport / headers**
+- HTTPS redirection.
+- HSTS (`max-age=365 days; includeSubDomains; preload`) outside Dev/Test.
+- Response headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, restrictive `Permissions-Policy`. `Server` / `X-Powered-By` stripped.
+- CORS locked to a configured allow-list with explicit methods (`GET, POST, DELETE, OPTIONS`) and an explicit header allow-list.
+
+**Rate limiting**
+- `Microsoft.AspNetCore.RateLimiting` partitioned by `RemoteIpAddress` (not a single global bucket). `public` policy: 10/min/IP; `admin` policy: 30/min/IP. Rejection returns `429`.
+
+**Input safety**
+- Two-layer validation (FluentValidation + service-layer referential checks) + `Email` value-object regex.
+- Kestrel `MaxRequestBodySize = 16 KB` (form is tiny; cap prevents DoS via large bodies).
+- `JsonSerializerOptions.MaxDepth = 8`.
+
+**Data protection**
+- `PhoneNumber` and `PostalAddress` encrypted at rest with ASP.NET Core Data Protection (`IDataProtector` value converter on the EF Core column). Keys persisted under `keys/` (gitignored) — for production, swap the persistence to Azure Key Vault / DPAPI / certificate.
+- `Email` stays plaintext because it's the upsert lookup; **for production use SQL Server TDE or Always Encrypted on the column**. Documented as the production path; current value-converter pattern shows the in-app encryption mechanism for the two free-text PII fields.
+
+**Privacy / GDPR**
+- `Subscription.MarkAsDeleted()` + global query filter — admin DELETE is a **soft delete**, not a row removal. Filtered unique index on `Email` lets a fresh re-subscribe after unsubscribe succeed without conflicting with the dead row.
+- Public `POST /api/subscriptions/unsubscribe` lets the subscriber remove themselves by email. Always returns `202 Accepted` with the same body whether the email existed or not — no enumeration leak.
+- `POST /api/subscriptions` also always returns `202 Accepted` (same body shape for new and existing).
+- Consent + timestamp captured at creation; cannot be bypassed (`Subscription.Create` throws if `consentGiven` is false). Re-subscribing refreshes the consent timestamp.
+- Email normalisation (trim + lower) prevents accidental duplicates from casing/whitespace.
+
+**Observability without leaking PII**
+- Structured logging via Serilog (compact JSON, daily rolling file, 14-day retention).
+- Correlation ID per request (incoming `X-Correlation-Id` honoured, else minted) — echoed on every response, including 500s, and added to every log line via a logger scope.
+- `GlobalExceptionHandler` writes a rich server log (correlationId, timestamp, method, path, redacted query string, exception type + message, inner type + message). Response body is `{ error, correlationId, timestamp }`; in Dev only it additionally carries the exception details. `DbUpdateException` messages are sanitised before logging — they can contain row values.
+- Sensitive query keys (`searchTerm`, `email`, `phone`, `token`, etc.) are redacted in the request-log query string.
+- `AdminAuditLogs` row written for every admin call: action, target id, correlation id, client IP, status code.
+
+**What's still future work** (intentionally not done):
+- Replace the single shared admin key with a proper auth scheme (JWT or per-user API keys).
+- Token-mediated unsubscribe (subscriber would receive a signed token by email to confirm); the current endpoint is email-only for the exercise.
+- Data-export endpoint (`GET /me?token=…`) for GDPR subject-access requests.
+- `dotnet list package --vulnerable --include-transitive` in CI; fail on High/Critical.
+- Repository-level test suite against a real SQL Server (Testcontainers).
 
 ## Assumptions
 

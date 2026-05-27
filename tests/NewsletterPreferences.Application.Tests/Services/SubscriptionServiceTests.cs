@@ -334,7 +334,7 @@ public class SubscriptionServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_WhenSubscriptionExists_DeletesAndReturnsSuccess()
+    public async Task DeleteAsync_WhenSubscriptionExists_SoftDeletesAndReturnsSuccess()
     {
         var subscription = BuildSubscriptionWithNavigations();
         _subscriptionRepo.Setup(r => r.GetByIdAsync(subscription.Id, It.IsAny<CancellationToken>()))
@@ -343,7 +343,10 @@ public class SubscriptionServiceTests
         var result = await _sut.DeleteAsync(subscription.Id, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        _subscriptionRepo.Verify(r => r.DeleteAsync(subscription, It.IsAny<CancellationToken>()), Times.Once);
+        subscription.IsDeleted.Should().BeTrue();
+        subscription.DeletedAt.Should().NotBeNull();
+        _subscriptionRepo.Verify(r => r.UpdateAsync(subscription, It.IsAny<CancellationToken>()), Times.Once);
+        _subscriptionRepo.Verify(r => r.DeleteAsync(It.IsAny<Subscription>(), It.IsAny<CancellationToken>()), Times.Never);
         _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 }

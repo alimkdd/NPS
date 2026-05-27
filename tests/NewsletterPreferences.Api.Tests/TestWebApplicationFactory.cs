@@ -12,6 +12,7 @@ namespace NewsletterPreferences.Api.Tests;
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
     public const string AdminKey = "test-admin-key-123";
+    public const string AdminKeyHash = "1b4e2c88a8eac6cd5072ce843eabf4cd25eb83f2218cae0e48d51d85f3651f33";
 
     // One fixed DB name per factory instance so all scopes share the same store
     private readonly string _dbName = "NpsTestDb_" + Guid.NewGuid();
@@ -24,7 +25,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["AdminSettings:ApiKey"] = AdminKey,
+                ["AdminSettings:ApiKeyHash"] = AdminKeyHash,
                 ["Cors:AllowedOrigins:0"] = "http://localhost:5173"
             });
         });

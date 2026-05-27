@@ -28,33 +28,31 @@ public class SubscriptionsControllerTests : IClassFixture<TestWebApplicationFact
     };
 
     [Fact]
-    public async Task Post_WithValidRequest_Returns201Created()
+    public async Task Post_WithValidRequest_Returns202Accepted()
     {
         await _factory.EnsureDatabaseCreatedAsync();
 
         var response = await _client.PostAsJsonAsync("/api/subscriptions", ValidPayload("new1@example.com"));
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<UpsertSubscriptionResult>();
         body!.SubscriptionId.Should().NotBeEmpty();
-        body.IsUpdate.Should().BeFalse();
     }
 
     [Fact]
-    public async Task Post_WithDuplicateEmail_Returns200OkWithIsUpdateTrue()
+    public async Task Post_WithDuplicateEmail_Returns202AcceptedWithSameShape()
     {
         await _factory.EnsureDatabaseCreatedAsync();
         const string email = "dup@example.com";
 
-        // First create
-        await _client.PostAsJsonAsync("/api/subscriptions", ValidPayload(email));
+        var firstResponse = await _client.PostAsJsonAsync("/api/subscriptions", ValidPayload(email));
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        // Second upsert with same email
-        var response = await _client.PostAsJsonAsync("/api/subscriptions", ValidPayload(email));
+        var secondResponse = await _client.PostAsJsonAsync("/api/subscriptions", ValidPayload(email));
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadFromJsonAsync<UpsertSubscriptionResult>();
-        body!.IsUpdate.Should().BeTrue();
+        var body = await secondResponse.Content.ReadFromJsonAsync<UpsertSubscriptionResult>();
+        body!.SubscriptionId.Should().NotBeEmpty();
     }
 
     [Fact]

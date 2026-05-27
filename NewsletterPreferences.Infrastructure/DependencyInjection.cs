@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AppDbContext>());
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
         services.AddScoped<ILookupRepository, LookupRepository>();
+        services.AddScoped<IAdminAuditLogRepository, AdminAuditLogRepository>();
 
         return services;
     }
