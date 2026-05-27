@@ -1,8 +1,8 @@
-using System.Net;
-using System.Net.Http.Json;
 using FluentAssertions;
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs;
+using System.Net;
+using System.Net.Http.Json;
 
 namespace NewsletterPreferences.Api.Tests.Controllers;
 

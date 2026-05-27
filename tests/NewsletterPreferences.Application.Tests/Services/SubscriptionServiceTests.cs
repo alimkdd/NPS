@@ -2,7 +2,6 @@ using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
 using Moq;
-using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs;
 using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Application.Services;
@@ -62,17 +61,17 @@ public class SubscriptionServiceTests
         List<int>? prefIds = null,
         string? phone = null,
         string? postalAddress = null) => new()
-    {
-        FirstName = "Jane",
-        LastName = "Doe",
-        Email = email,
-        SubscriberTypeId = 1,
-        CommunicationPreferenceIds = prefIds ?? [1],
-        InterestIds = [1],
-        ConsentGiven = true,
-        PhoneNumber = phone,
-        PostalAddress = postalAddress
-    };
+        {
+            FirstName = "Jane",
+            LastName = "Doe",
+            Email = email,
+            SubscriberTypeId = 1,
+            CommunicationPreferenceIds = prefIds ?? [1],
+            InterestIds = [1],
+            ConsentGiven = true,
+            PhoneNumber = phone,
+            PostalAddress = postalAddress
+        };
 
     private static Subscription BuildSubscriptionWithNavigations(string email = "jane@example.com")
     {

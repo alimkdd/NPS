@@ -19,18 +19,18 @@ public class UpsertSubscriptionRequestValidatorTests
         bool consentGiven = true,
         string? phoneNumber = null,
         string? postalAddress = null) => new()
-    {
-        FirstName = firstName,
-        LastName = lastName,
-        Email = email,
-        Organisation = organisation,
-        SubscriberTypeId = subscriberTypeId,
-        CommunicationPreferenceIds = communicationPreferenceIds ?? [1],
-        InterestIds = interestIds ?? [1],
-        ConsentGiven = consentGiven,
-        PhoneNumber = phoneNumber,
-        PostalAddress = postalAddress
-    };
+        {
+            FirstName = firstName,
+            LastName = lastName,
+            Email = email,
+            Organisation = organisation,
+            SubscriberTypeId = subscriberTypeId,
+            CommunicationPreferenceIds = communicationPreferenceIds ?? [1],
+            InterestIds = interestIds ?? [1],
+            ConsentGiven = consentGiven,
+            PhoneNumber = phoneNumber,
+            PostalAddress = postalAddress
+        };
 
     [Fact]
     public async Task ValidRequest_PassesValidation()

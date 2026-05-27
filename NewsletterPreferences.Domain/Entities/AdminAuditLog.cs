@@ -18,13 +18,13 @@ public class AdminAuditLog
         string? correlationId,
         string? clientIp,
         int statusCode) => new()
-    {
-        Id = Guid.NewGuid(),
-        Timestamp = DateTime.UtcNow,
-        Action = action,
-        TargetSubscriptionId = targetSubscriptionId,
-        CorrelationId = correlationId,
-        ClientIp = clientIp,
-        StatusCode = statusCode
-    };
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTime.UtcNow,
+            Action = action,
+            TargetSubscriptionId = targetSubscriptionId,
+            CorrelationId = correlationId,
+            ClientIp = clientIp,
+            StatusCode = statusCode
+        };
 }

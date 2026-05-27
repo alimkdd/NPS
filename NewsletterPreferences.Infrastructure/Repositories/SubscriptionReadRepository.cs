@@ -1,9 +1,9 @@
-using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using NewsletterPreferences.Application.DTOs;
 using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Infrastructure.Persistence;
+using System.Linq.Expressions;
 
 namespace NewsletterPreferences.Infrastructure.Repositories;
 

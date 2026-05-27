@@ -1,7 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace NewsletterPreferences.Api.Filters;
 

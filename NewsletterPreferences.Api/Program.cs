@@ -1,6 +1,4 @@
-using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NewsletterPreferences.Api.Filters;
 using NewsletterPreferences.Api.Middleware;
@@ -8,6 +6,7 @@ using NewsletterPreferences.Application;
 using NewsletterPreferences.Infrastructure;
 using NewsletterPreferences.Infrastructure.Persistence;
 using Serilog;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
