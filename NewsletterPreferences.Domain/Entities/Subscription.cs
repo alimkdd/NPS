@@ -10,7 +10,9 @@ public class Subscription : AuditableEntity
 
     public string FirstName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
-    public Email Email { get; private set; } = null!;
+    // Stored as plain string for queryability (LIKE in admin search). The Email
+    // value object enforces format invariants at Create() and at the service layer.
+    public string Email { get; private set; } = string.Empty;
     public string? Organisation { get; private set; }
     public int SubscriberTypeId { get; private set; }
     public string? PhoneNumber { get; private set; }
@@ -48,7 +50,7 @@ public class Subscription : AuditableEntity
         {
             FirstName = firstName.Trim(),
             LastName = lastName.Trim(),
-            Email = email,
+            Email = email.Value,
             Organisation = string.IsNullOrWhiteSpace(organisation) ? null : organisation.Trim(),
             SubscriberTypeId = subscriberTypeId,
             PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim(),

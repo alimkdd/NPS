@@ -15,7 +15,7 @@ public class SubscriptionReadRepository(AppDbContext context) : ISubscriptionRea
             Id = s.Id,
             FirstName = s.FirstName,
             LastName = s.LastName,
-            Email = EF.Property<string>(s, "Email"),
+            Email = s.Email,
             Organisation = s.Organisation,
             SubscriberType = new LookupItemResponse
             {
@@ -72,7 +72,7 @@ public class SubscriptionReadRepository(AppDbContext context) : ISubscriptionRea
             query = query.Where(s =>
                 EF.Functions.Like(s.FirstName, pattern) ||
                 EF.Functions.Like(s.LastName, pattern) ||
-                EF.Functions.Like(EF.Property<string>(s, "Email"), pattern));
+                EF.Functions.Like(s.Email, pattern));
         }
 
         if (subscriberTypeId.HasValue)

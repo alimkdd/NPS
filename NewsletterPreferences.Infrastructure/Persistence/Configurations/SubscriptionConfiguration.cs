@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NewsletterPreferences.Domain.Entities;
-using NewsletterPreferences.Domain.ValueObjects;
 
 namespace NewsletterPreferences.Infrastructure.Persistence.Configurations;
 
@@ -18,10 +17,7 @@ public class SubscriptionConfiguration : IEntityTypeConfiguration<Subscription>
 
         builder.Property(s => s.Email)
             .IsRequired()
-            .HasMaxLength(255)
-            .HasConversion(
-                email => email.Value,
-                value => Email.Create(value));
+            .HasMaxLength(255);
 
         builder.HasIndex(s => s.Email)
             .IsUnique()
