@@ -2,7 +2,7 @@
 
 A small full-stack application for capturing, validating, persisting, and managing newsletter subscription preferences. Submitted as part of the Full Stack Developer recruitment exercise for SDS / Aspire Software.
 
-> **Status:** Backend complete (.NET 10 API + SQL Server + 60 passing tests). React + TypeScript frontend is the next phase.
+> **This is the backend.** The React + TypeScript frontend lives in a sibling repo: [NPS-Frontend](https://github.com/alimkdd/NPS-Frontend) (default origin: `http://localhost:5173`, already on the CORS allow-list here).
 
 ---
 
