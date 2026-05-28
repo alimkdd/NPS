@@ -135,17 +135,19 @@ public class AdminAuthService(
             return Result<RegisterCompleteResponse>.Failure("Attestation verification failed.");
         }
 
-        admin.AddCredential(
+        var credential = admin.AddCredential(
             credentialId: result.Id,
             publicKey: result.PublicKey,
             signCount: result.SignCount,
             aaGuid: result.AaGuid,
             friendlyName: request.FriendlyName);
 
-        // The admin aggregate is tracked from GetByUsernameAsync above — the change
-        // tracker picks up the new credential automatically. Calling Update() here
-        // would mark the new credential as Modified (since Entity assigns Guid.NewGuid()
-        // at construction), causing SaveChanges to emit UPDATE instead of INSERT.
+        // Explicitly attach as Added. WebAuthnCredential's Entity base assigns
+        // Id = Guid.NewGuid() at construction, so EF's collection-change detection
+        // would otherwise see a non-default PK and mark the new credential Modified —
+        // SaveChanges then emits UPDATE against a row that doesn't exist (0 rows
+        // affected → DbUpdateConcurrencyException).
+        await adminUsers.AddCredentialAsync(credential, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         cache.Remove(RegisterCachePrefix + request.ChallengeToken);
 

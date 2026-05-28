@@ -36,5 +36,8 @@ public class AdminUserRepository(AppDbContext context) : IAdminUserRepository
     public Task AddAsync(AdminUser adminUser, CancellationToken cancellationToken = default) =>
         context.AdminUsers.AddAsync(adminUser, cancellationToken).AsTask();
 
+    public Task AddCredentialAsync(WebAuthnCredential credential, CancellationToken cancellationToken = default) =>
+        context.WebAuthnCredentials.AddAsync(credential, cancellationToken).AsTask();
+
     public void Update(AdminUser adminUser) => context.AdminUsers.Update(adminUser);
 }
