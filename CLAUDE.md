@@ -26,7 +26,7 @@ dotnet test tests/NewsletterPreferences.Application.Tests
 dotnet test tests/NewsletterPreferences.Api.Tests
 
 # Run a single test by name
-dotnet test NPS.slnx --filter "FullyQualifiedName~AdminControllerTests.GetPaged_WithoutAdminKey_Returns401"
+dotnet test NPS.slnx --filter "FullyQualifiedName~AdminControllerTests.GetPaged_WithoutBearer_Returns401"
 
 # EF Core migrations (Infrastructure owns the model, Api is the startup project)
 dotnet ef migrations add <Name> --project NewsletterPreferences.Infrastructure --startup-project NewsletterPreferences.Api
@@ -48,13 +48,22 @@ Domain  ←  Application  ←  Infrastructure
 - **Domain** — no dependencies. Entities (`Subscription` is the aggregate root), value object (`Email`), repository/UoW interfaces. Entities have private setters and static `Create` factory methods; mutations go through methods like `Subscription.UpdatePreferences(...)`. Domain enforces invariants (e.g. `Create` throws if `consentGiven` is false).
 - **Application** — depends only on Domain. Services return `Result<T>` / `Result` (success + value, or error string + validation-error list). FluentValidation validators run inside the service before any DB work. `SubscriberType`, `CommunicationPreference`, `NewsletterInterest` are lookup tables exposed via `ILookupRepository`.
 - **Infrastructure** — EF Core, `AppDbContext` (which also **implements `IUnitOfWork`** — they are registered to the same instance), repository implementations, migrations. SQL Server provider only.
-- **Api** — controllers, `AdminKeyAuthFilter` (header `X-Admin-Key` vs `AdminSettings:ApiKey`), `GlobalExceptionHandler` (returns sanitized 500), rate limiting (`"public"` policy on the public POST endpoint).
+- **Api** — controllers, WebAuthn admin auth (`AdminAuthController` + `ConfigureJwtBearerOptions`), `GlobalExceptionHandler` (returns sanitized 500), rate limiting (`"public"` policy on the public POST endpoint).
 
 ### Endpoint surface
 
 - `POST /api/subscriptions` — public, rate-limited, upsert by email. Returns `201 CreatedAtAction` for new, `200 Ok` for update (`IsUpdate` flag on the response).
-- `GET /api/admin/subscriptions` (+ `/{id}`, `DELETE /{id}`) — admin-only, guarded by `AdminKeyAuthFilter`.
+- `GET /api/admin/subscriptions` (+ `/{id}`, `DELETE /{id}`) — admin-only, gated by `[Authorize(Policy = "AdminOnly")]` which requires a JWT with the `Admin` role.
+- `GET /api/admin/auth/status` — public, reports whether the admin has registered any passkey (drives the FE's enroll-vs-sign-in branch).
+- `POST /api/admin/auth/register/{begin,complete}` — WebAuthn enrollment ceremony. Anonymous *only* while the admin has zero credentials (bootstrap); afterwards requires an authenticated JWT.
+- `POST /api/admin/auth/login/{begin,complete}` — WebAuthn assertion ceremony. Returns a JWT on success.
 - `GET /api/lookups` — public lookup data for the frontend dropdowns.
+
+### Admin auth flow
+
+Admin auth uses **WebAuthn / Passkey** (no passwords or API keys). The `AdminAuthService` orchestrates the four ceremony halves via `Fido2NetLib`, stashing per-ceremony challenges in `IMemoryCache` keyed by an opaque token echoed back to the client. On successful assertion, `JwtTokenService` issues a short-lived HMAC-SHA256 JWT with `role = Admin` that the FE attaches as `Authorization: Bearer ...` to every admin request.
+
+`ConfigureJwtBearerOptions` (`Api/Authentication/`) configures the bearer middleware lazily via `IConfigureNamedOptions<JwtBearerOptions>` so it picks up integration-test config overrides — do NOT inline JWT config in `Program.cs`'s `AddJwtBearer(...)` callback or the test factory's signing key won't apply.
 
 ### Two-layer validation
 
@@ -67,7 +76,7 @@ The `Email` value object has its own stricter regex check (`Email.Create` throws
 
 ### Configuration
 
-- `appsettings.json` keys: `ConnectionStrings:DefaultConnection`, `AdminSettings:ApiKey`, `Cors:AllowedOrigins`. The committed default admin key is `change-this-in-production` — do not check in real secrets.
+- `appsettings.json` keys: `ConnectionStrings:DefaultConnection`, `AdminAuth:Username`/`DisplayName`, `Jwt:SigningKey`/`Issuer`/`Audience`/`ExpiryMinutes`, `Fido2:ServerDomain`/`Origins`, `Cors:AllowedOrigins`. The committed JWT signing key is a placeholder — replace before deploying. The seeded admin user has no credentials by default; first-time enrollment via the FE bootstraps the first passkey.
 - The Api branches DB initialisation on environment: `Test` → `EnsureCreatedAsync`, otherwise → `MigrateAsync`. This branch is load-bearing for the integration tests (see below); don't switch it back to `Database.IsRelational()` — that throws during test host startup because the EF internal service provider sees both SqlServer and InMemory registered.
 
 ## Testing patterns (read before touching `TestWebApplicationFactory`)

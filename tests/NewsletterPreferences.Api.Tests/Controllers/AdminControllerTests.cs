@@ -2,6 +2,7 @@ using FluentAssertions;
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 
 namespace NewsletterPreferences.Api.Tests.Controllers;
@@ -17,8 +18,13 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
         _client = factory.CreateClient();
     }
 
-    private HttpRequestMessage AdminRequest(HttpMethod method, string url) =>
-        new(method, url) { Headers = { { "X-Admin-Key", TestWebApplicationFactory.AdminKey } } };
+    private async Task<HttpRequestMessage> AdminRequestAsync(HttpMethod method, string url)
+    {
+        var token = await _factory.IssueAdminJwtAsync();
+        var req = new HttpRequestMessage(method, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return req;
+    }
 
     private async Task<Guid> SeedSubscriptionAsync(string email = "admin-test@example.com")
     {
@@ -45,7 +51,7 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     // ── Auth guard ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetPaged_WithoutAdminKey_Returns401()
+    public async Task GetPaged_WithoutBearer_Returns401()
     {
         var response = await _client.GetAsync("/api/admin/subscriptions");
 
@@ -53,10 +59,10 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     }
 
     [Fact]
-    public async Task GetPaged_WithWrongAdminKey_Returns401()
+    public async Task GetPaged_WithInvalidBearer_Returns401()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/subscriptions");
-        request.Headers.Add("X-Admin-Key", "wrong-key");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "not-a-real-jwt");
 
         var response = await _client.SendAsync(request);
 
@@ -66,11 +72,11 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     // ── GET paged ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetPaged_WithValidKey_Returns200()
+    public async Task GetPaged_WithValidBearer_Returns200()
     {
         await _factory.EnsureDatabaseCreatedAsync();
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Get, "/api/admin/subscriptions"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Get, "/api/admin/subscriptions"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -80,7 +86,7 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         await SeedSubscriptionAsync("paged@example.com");
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Get, "/api/admin/subscriptions?page=1&pageSize=10"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Get, "/api/admin/subscriptions?page=1&pageSize=10"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<PagedResult<SubscriptionResponse>>();
@@ -95,7 +101,7 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         var id = await SeedSubscriptionAsync("getbyid@example.com");
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Get, $"/api/admin/subscriptions/{id}"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Get, $"/api/admin/subscriptions/{id}"));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<SubscriptionResponse>();
@@ -108,13 +114,13 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         await _factory.EnsureDatabaseCreatedAsync();
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Get, $"/api/admin/subscriptions/{Guid.NewGuid()}"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Get, $"/api/admin/subscriptions/{Guid.NewGuid()}"));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task GetById_WithoutAdminKey_Returns401()
+    public async Task GetById_WithoutBearer_Returns401()
     {
         var response = await _client.GetAsync($"/api/admin/subscriptions/{Guid.NewGuid()}");
 
@@ -128,7 +134,7 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         var id = await SeedSubscriptionAsync("delete-me@example.com");
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Delete, $"/api/admin/subscriptions/{id}"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Delete, $"/api/admin/subscriptions/{id}"));
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -138,13 +144,13 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         await _factory.EnsureDatabaseCreatedAsync();
 
-        var response = await _client.SendAsync(AdminRequest(HttpMethod.Delete, $"/api/admin/subscriptions/{Guid.NewGuid()}"));
+        var response = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Delete, $"/api/admin/subscriptions/{Guid.NewGuid()}"));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task Delete_WithoutAdminKey_Returns401()
+    public async Task Delete_WithoutBearer_Returns401()
     {
         var response = await _client.DeleteAsync($"/api/admin/subscriptions/{Guid.NewGuid()}");
 
@@ -156,8 +162,8 @@ public class AdminControllerTests : IClassFixture<TestWebApplicationFactory>
     {
         var id = await SeedSubscriptionAsync("delete-then-check@example.com");
 
-        await _client.SendAsync(AdminRequest(HttpMethod.Delete, $"/api/admin/subscriptions/{id}"));
-        var getResponse = await _client.SendAsync(AdminRequest(HttpMethod.Get, $"/api/admin/subscriptions/{id}"));
+        await _client.SendAsync(await AdminRequestAsync(HttpMethod.Delete, $"/api/admin/subscriptions/{id}"));
+        var getResponse = await _client.SendAsync(await AdminRequestAsync(HttpMethod.Get, $"/api/admin/subscriptions/{id}"));
 
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

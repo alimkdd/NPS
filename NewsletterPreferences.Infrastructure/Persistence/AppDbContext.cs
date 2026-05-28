@@ -20,6 +20,8 @@ public class AppDbContext(
     public DbSet<SubscriptionCommunicationPreference> SubscriptionCommunicationPreferences => Set<SubscriptionCommunicationPreference>();
     public DbSet<SubscriptionInterest> SubscriptionInterests => Set<SubscriptionInterest>();
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+    public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
+    public DbSet<WebAuthnCredential> WebAuthnCredentials => Set<WebAuthnCredential>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

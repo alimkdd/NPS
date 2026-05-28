@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using NewsletterPreferences.Api.Filters;
@@ -9,7 +10,7 @@ namespace NewsletterPreferences.Api.Controllers;
 [ApiController]
 [Route("api/admin/subscriptions")]
 [EnableRateLimiting("admin")]
-[ServiceFilter(typeof(AdminKeyAuthFilter))]
+[Authorize(Policy = "AdminOnly")]
 [ServiceFilter(typeof(AdminAuditFilter))]
 public class AdminController(ISubscriptionService subscriptionService) : ControllerBase
 {

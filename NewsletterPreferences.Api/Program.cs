@@ -1,8 +1,15 @@
+using Fido2NetLib;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using NewsletterPreferences.Api.Authentication;
 using NewsletterPreferences.Api.Filters;
 using NewsletterPreferences.Api.Middleware;
 using NewsletterPreferences.Application;
+using NewsletterPreferences.Application.Settings;
+using NewsletterPreferences.Domain.Entities;
+using NewsletterPreferences.Domain.Interfaces;
 using NewsletterPreferences.Infrastructure;
 using NewsletterPreferences.Infrastructure.Persistence;
 using Serilog;
@@ -49,7 +56,31 @@ builder.Services.AddMemoryCache(options =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services.AddScoped<AdminKeyAuthFilter>();
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.Configure<AdminAuthSettings>(builder.Configuration.GetSection(AdminAuthSettings.SectionName));
+
+// WebAuthn / FIDO2: RP ID is the bare domain (without scheme/port); Origins MUST
+// include the scheme+port the FE is served from. WebAuthn allows http only for
+// localhost — every other origin must be https.
+builder.Services.AddFido2(options =>
+{
+    options.ServerDomain = builder.Configuration["Fido2:ServerDomain"] ?? "localhost";
+    options.ServerName = builder.Configuration["Fido2:ServerName"] ?? "Newsletter Preferences";
+    options.Origins = (builder.Configuration.GetSection("Fido2:Origins").Get<string[]>()
+                      ?? ["https://localhost:5173"]).ToHashSet();
+    options.TimestampDriftTolerance = 300_000; // 5 min
+});
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer();
+builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
+
 builder.Services.AddScoped<AdminAuditFilter>();
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -79,7 +110,7 @@ builder.Services.AddCors(options =>
 
         policy.WithOrigins(allowedOrigins)
             .WithMethods("GET", "POST", "DELETE", "OPTIONS")
-            .WithHeaders("Content-Type", "X-Admin-Key", CorrelationIdMiddleware.HeaderName)
+            .WithHeaders("Content-Type", "Authorization", CorrelationIdMiddleware.HeaderName)
             .WithExposedHeaders(CorrelationIdMiddleware.HeaderName);
     });
 });
@@ -142,6 +173,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors();
 app.UseRateLimiter();
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
@@ -151,6 +184,21 @@ using (var scope = app.Services.CreateScope())
         await db.Database.EnsureCreatedAsync();
     else
         await db.Database.MigrateAsync();
+
+    // Seed the bootstrapped admin user if missing. Credentials are added through the
+    // WebAuthn enrollment ceremony — no password to seed.
+    var adminRepo = scope.ServiceProvider.GetRequiredService<IAdminUserRepository>();
+    var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+    var adminSettings = builder.Configuration.GetSection(AdminAuthSettings.SectionName).Get<AdminAuthSettings>()
+        ?? new AdminAuthSettings();
+    var existing = await adminRepo.GetByUsernameAsync(adminSettings.Username);
+    if (existing is null)
+    {
+        var admin = AdminUser.Create(adminSettings.Username, adminSettings.DisplayName);
+        await adminRepo.AddAsync(admin);
+        await unitOfWork.SaveChangesAsync();
+        Log.Information("Seeded initial admin user {Username}", admin.Username);
+    }
 }
 
 try

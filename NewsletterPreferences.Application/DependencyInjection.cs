@@ -14,6 +14,8 @@ public static class DependencyInjection
 
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<ILookupService, LookupService>();
+        services.AddScoped<IAdminAuthService, AdminAuthService>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         return services;
     }

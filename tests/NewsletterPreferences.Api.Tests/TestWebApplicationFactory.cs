@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using NewsletterPreferences.Application.Services;
 using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Domain.Interfaces;
 using NewsletterPreferences.Infrastructure.Persistence;
@@ -11,10 +12,11 @@ namespace NewsletterPreferences.Api.Tests;
 
 public class TestWebApplicationFactory : WebApplicationFactory<Program>
 {
-    public const string AdminKey = "test-admin-key-123";
-    public const string AdminKeyHash = "1b4e2c88a8eac6cd5072ce843eabf4cd25eb83f2218cae0e48d51d85f3651f33";
+    public const string AdminUsername = "admin";
+    // 32+ chars; needed because JwtTokenService rejects shorter keys (HMAC-SHA256 requires >= 256 bits).
+    public const string TestJwtSigningKey = "test-signing-key-do-not-use-in-prod-please-32+-chars";
 
-    // One fixed DB name per factory instance so all scopes share the same store
+    // One fixed DB name per factory instance so all scopes share the same store.
     private readonly string _dbName = "NpsTestDb_" + Guid.NewGuid();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -25,8 +27,16 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["AdminSettings:ApiKeyHash"] = AdminKeyHash,
-                ["Cors:AllowedOrigins:0"] = "http://localhost:5173"
+                ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
+                ["AdminAuth:Username"] = AdminUsername,
+                ["AdminAuth:DisplayName"] = "Administrator",
+                ["Jwt:Issuer"] = "NewsletterPreferences",
+                ["Jwt:Audience"] = "NewsletterPreferences.Admin",
+                ["Jwt:SigningKey"] = TestJwtSigningKey,
+                ["Jwt:ExpiryMinutes"] = "60",
+                ["Fido2:ServerDomain"] = "localhost",
+                ["Fido2:ServerName"] = "Newsletter Preferences",
+                ["Fido2:Origins:0"] = "https://localhost:5173",
             });
         });
 
@@ -62,9 +72,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Ensures the in-memory database exists and lookup seed data is present.
-    /// EF Core InMemory does not reliably apply HasData seeds via EnsureCreated
-    /// across service scopes, so lookup data is seeded explicitly here.
+    /// Ensures the in-memory database exists, lookup seed data is present, and the
+    /// bootstrap admin user is seeded. EF Core InMemory does not reliably apply
+    /// HasData seeds via EnsureCreated across service scopes, so lookup data is
+    /// seeded explicitly here.
     /// </summary>
     public async Task EnsureDatabaseCreatedAsync()
     {
@@ -72,31 +83,53 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.EnsureCreatedAsync();
 
-        if (db.SubscriberTypes.Any()) return;
+        if (!db.SubscriberTypes.Any())
+        {
+            db.SubscriberTypes.AddRange(
+                SubscriberType.Create(1, "Home Buyer", "HOME_BUYER"),
+                SubscriberType.Create(2, "Home Builder", "HOME_BUILDER"),
+                SubscriberType.Create(3, "Land Agent / Land Sourcer", "LAND_AGENT"),
+                SubscriberType.Create(4, "Developer", "DEVELOPER"),
+                SubscriberType.Create(5, "Other", "OTHER")
+            );
+            db.CommunicationPreferences.AddRange(
+                CommunicationPreference.Create(1, "Email", "EMAIL"),
+                CommunicationPreference.Create(2, "Phone", "PHONE"),
+                CommunicationPreference.Create(3, "SMS", "SMS"),
+                CommunicationPreference.Create(4, "Post", "POST")
+            );
+            db.NewsletterInterests.AddRange(
+                NewsletterInterest.Create(1, "Houses", "HOUSES"),
+                NewsletterInterest.Create(2, "Apartments", "APARTMENTS"),
+                NewsletterInterest.Create(3, "Shared Ownership", "SHARED_OWNERSHIP"),
+                NewsletterInterest.Create(4, "Rental", "RENTAL"),
+                NewsletterInterest.Create(5, "Land Sourcing", "LAND_SOURCING"),
+                NewsletterInterest.Create(6, "Development Finance", "DEV_FINANCE"),
+                NewsletterInterest.Create(7, "Planning Updates", "PLANNING_UPDATES"),
+                NewsletterInterest.Create(8, "New Developments", "NEW_DEVELOPMENTS")
+            );
+            await db.SaveChangesAsync();
+        }
 
-        db.SubscriberTypes.AddRange(
-            SubscriberType.Create(1, "Home Buyer", "HOME_BUYER"),
-            SubscriberType.Create(2, "Home Builder", "HOME_BUILDER"),
-            SubscriberType.Create(3, "Land Agent / Land Sourcer", "LAND_AGENT"),
-            SubscriberType.Create(4, "Developer", "DEVELOPER"),
-            SubscriberType.Create(5, "Other", "OTHER")
-        );
-        db.CommunicationPreferences.AddRange(
-            CommunicationPreference.Create(1, "Email", "EMAIL"),
-            CommunicationPreference.Create(2, "Phone", "PHONE"),
-            CommunicationPreference.Create(3, "SMS", "SMS"),
-            CommunicationPreference.Create(4, "Post", "POST")
-        );
-        db.NewsletterInterests.AddRange(
-            NewsletterInterest.Create(1, "Houses", "HOUSES"),
-            NewsletterInterest.Create(2, "Apartments", "APARTMENTS"),
-            NewsletterInterest.Create(3, "Shared Ownership", "SHARED_OWNERSHIP"),
-            NewsletterInterest.Create(4, "Rental", "RENTAL"),
-            NewsletterInterest.Create(5, "Land Sourcing", "LAND_SOURCING"),
-            NewsletterInterest.Create(6, "Development Finance", "DEV_FINANCE"),
-            NewsletterInterest.Create(7, "Planning Updates", "PLANNING_UPDATES"),
-            NewsletterInterest.Create(8, "New Developments", "NEW_DEVELOPMENTS")
-        );
-        await db.SaveChangesAsync();
+        if (!db.AdminUsers.Any())
+        {
+            db.AdminUsers.Add(AdminUser.Create(AdminUsername, "Administrator"));
+            await db.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Issues a real JWT for the seeded admin via the live <see cref="IJwtTokenService"/>.
+    /// Use this for any admin-protected endpoint call in tests.
+    /// </summary>
+    public async Task<string> IssueAdminJwtAsync()
+    {
+        await EnsureDatabaseCreatedAsync();
+        using var scope = Services.CreateScope();
+        var adminRepo = scope.ServiceProvider.GetRequiredService<IAdminUserRepository>();
+        var admin = await adminRepo.GetByUsernameAsync(AdminUsername)
+            ?? throw new InvalidOperationException("Seeded admin user not found.");
+        var jwt = scope.ServiceProvider.GetRequiredService<IJwtTokenService>();
+        return jwt.IssueAdminToken(admin).AccessToken;
     }
 }
