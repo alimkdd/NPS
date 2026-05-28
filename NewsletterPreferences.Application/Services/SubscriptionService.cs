@@ -106,7 +106,7 @@ public class SubscriptionService(
         SubscriptionFilterRequest filter, CancellationToken cancellationToken = default)
     {
         var page = Math.Max(filter.Page, 1);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 6);
 
         var (items, totalCount) = await subscriptionReadRepository.GetPagedAsync(
             filter.SearchTerm,

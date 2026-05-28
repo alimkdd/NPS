@@ -299,23 +299,23 @@ public class SubscriptionServiceTests
                 It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((items, 1));
 
-        var filter = new SubscriptionFilterRequest { Page = 1, PageSize = 20 };
+        var filter = new SubscriptionFilterRequest { Page = 1, PageSize = 6 };
         var result = await _sut.GetPagedAsync(filter, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value!.TotalCount.Should().Be(1);
         result.Value.Items.Should().HaveCount(1);
         result.Value.Page.Should().Be(1);
-        result.Value.PageSize.Should().Be(20);
+        result.Value.PageSize.Should().Be(6);
     }
 
     [Fact]
-    public async Task GetPagedAsync_ClampsPageSizeAbove100()
+    public async Task GetPagedAsync_ClampsPageSizeAbove6()
     {
         IReadOnlyList<SubscriptionResponse> items = [];
         _subscriptionReadRepo.Setup(r => r.GetPagedAsync(
                 It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(),
-                1, 100, It.IsAny<CancellationToken>()))
+                1, 6, It.IsAny<CancellationToken>()))
             .ReturnsAsync((items, 0));
 
         var filter = new SubscriptionFilterRequest { Page = 1, PageSize = 999 };
@@ -324,7 +324,7 @@ public class SubscriptionServiceTests
         result.IsSuccess.Should().BeTrue();
         _subscriptionReadRepo.Verify(r => r.GetPagedAsync(
             It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<int?>(),
-            1, 100, It.IsAny<CancellationToken>()), Times.Once);
+            1, 6, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // ── DeleteAsync ────────────────────────────────────────────────────────────

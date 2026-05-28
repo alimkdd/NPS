@@ -107,7 +107,7 @@ Challenges are stored in `IMemoryCache` keyed by the opaque token, TTL 5 minutes
 
 | Method   | Route                            | Notes                                                                                                                                          |
 | -------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`    | `/api/admin/subscriptions`       | Paged list. Query: `searchTerm`, `subscriberTypeId`, `communicationPreferenceId`, `interestId`, `page`, `pageSize` (clamped 1–100).            |
+| `GET`    | `/api/admin/subscriptions`       | Paged list. Query: `searchTerm`, `subscriberTypeId`, `communicationPreferenceId`, `interestId`, `page`, `pageSize` (clamped 1–6).            |
 | `GET`    | `/api/admin/subscriptions/stats` | `{ totalActive, newLast7Days, newLast30Days }` for the dashboard cards.                                                                        |
 | `GET`    | `/api/admin/subscriptions/{id}`  | Get a single subscription.                                                                                                                     |
 | `DELETE` | `/api/admin/subscriptions/{id}`  | **Soft delete** — sets `IsDeleted = true` + `DeletedAt`. A global query filter hides the row from subsequent reads; a filtered unique index lets the same email re-subscribe afterwards. |
