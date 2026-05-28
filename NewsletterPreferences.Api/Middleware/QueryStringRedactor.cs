@@ -19,7 +19,7 @@ public static class QueryStringRedactor
 
         var rebuilt = parsed.ToDictionary(
             kv => kv.Key,
-            kv => SensitiveKeys.Contains(kv.Key) ? "[redacted]" : kv.Value.ToString());
+            kv => SensitiveKeys.Contains(kv.Key) ? "****" : kv.Value.ToString());
 
         return QueryString.Create(rebuilt!).Value;
     }

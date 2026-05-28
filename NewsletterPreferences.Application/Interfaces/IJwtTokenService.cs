@@ -1,6 +1,6 @@
 using NewsletterPreferences.Domain.Entities;
 
-namespace NewsletterPreferences.Application.Services;
+namespace NewsletterPreferences.Application.Interfaces;
 
 public record JwtToken(string AccessToken, DateTime ExpiresAtUtc);
 

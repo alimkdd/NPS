@@ -1,4 +1,3 @@
-using Fido2NetLib;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -59,9 +58,6 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
 builder.Services.Configure<AdminAuthSettings>(builder.Configuration.GetSection(AdminAuthSettings.SectionName));
 
-// WebAuthn / FIDO2: RP ID is the bare domain (without scheme/port); Origins MUST
-// include the scheme+port the FE is served from. WebAuthn allows http only for
-// localhost — every other origin must be https.
 builder.Services.AddFido2(options =>
 {
     options.ServerDomain = builder.Configuration["Fido2:ServerDomain"] ?? "localhost";
@@ -71,9 +67,8 @@ builder.Services.AddFido2(options =>
     options.TimestampDriftTolerance = 300_000; // 5 min
 });
 
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+
 builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, ConfigureJwtBearerOptions>();
 
 builder.Services.AddAuthorization(options =>
@@ -180,18 +175,20 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
     if (app.Environment.IsEnvironment("Test"))
         await db.Database.EnsureCreatedAsync();
     else
         await db.Database.MigrateAsync();
 
-    // Seed the bootstrapped admin user if missing. Credentials are added through the
-    // WebAuthn enrollment ceremony — no password to seed.
     var adminRepo = scope.ServiceProvider.GetRequiredService<IAdminUserRepository>();
     var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
     var adminSettings = builder.Configuration.GetSection(AdminAuthSettings.SectionName).Get<AdminAuthSettings>()
         ?? new AdminAuthSettings();
+
     var existing = await adminRepo.GetByUsernameAsync(adminSettings.Username);
+
     if (existing is null)
     {
         var admin = AdminUser.Create(adminSettings.Username, adminSettings.DisplayName);

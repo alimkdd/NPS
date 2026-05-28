@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using NewsletterPreferences.Application.Services;
+using NewsletterPreferences.Application.Interfaces;
 
 namespace NewsletterPreferences.Api.Controllers;
 

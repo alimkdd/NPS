@@ -1,7 +1,7 @@
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs.Auth;
 
-namespace NewsletterPreferences.Application.Services;
+namespace NewsletterPreferences.Application.Interfaces;
 
 public interface IAdminAuthService
 {

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Application.Settings;
 using NewsletterPreferences.Domain.Entities;
 using System.IdentityModel.Tokens.Jwt;

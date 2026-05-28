@@ -1,4 +1,5 @@
 using NewsletterPreferences.Application.DTOs;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Interfaces;
 
 namespace NewsletterPreferences.Application.Services;

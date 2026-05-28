@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Application.Services;
 
 namespace NewsletterPreferences.Application;

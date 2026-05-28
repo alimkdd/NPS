@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using NewsletterPreferences.Api.Filters;
 using NewsletterPreferences.Application.DTOs;
-using NewsletterPreferences.Application.Services;
+using NewsletterPreferences.Application.Interfaces;
 
 namespace NewsletterPreferences.Api.Controllers;
 

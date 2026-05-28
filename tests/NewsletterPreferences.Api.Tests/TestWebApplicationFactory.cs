@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using NewsletterPreferences.Application.Services;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Entities;
 using NewsletterPreferences.Domain.Interfaces;
 using NewsletterPreferences.Infrastructure.Persistence;

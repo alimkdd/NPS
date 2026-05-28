@@ -9,8 +9,6 @@ public class DesignTimeAppDbContextFactory : IDesignTimeDbContextFactory<AppDbCo
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        // `dotnet ef --startup-project NewsletterPreferences.Api` runs with the Api
-        // project as the current directory, so its appsettings files sit right here.
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)

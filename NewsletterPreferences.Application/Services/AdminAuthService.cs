@@ -4,9 +4,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NewsletterPreferences.Application.Common;
 using NewsletterPreferences.Application.DTOs.Auth;
-using NewsletterPreferences.Application.Settings;
+using NewsletterPreferences.Application.Interfaces;
 using NewsletterPreferences.Domain.Interfaces;
-using System.Text;
 
 namespace NewsletterPreferences.Application.Services;
 
