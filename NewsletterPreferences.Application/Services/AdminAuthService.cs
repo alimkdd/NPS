@@ -142,7 +142,10 @@ public class AdminAuthService(
             aaGuid: result.AaGuid,
             friendlyName: request.FriendlyName);
 
-        adminUsers.Update(admin);
+        // The admin aggregate is tracked from GetByUsernameAsync above — the change
+        // tracker picks up the new credential automatically. Calling Update() here
+        // would mark the new credential as Modified (since Entity assigns Guid.NewGuid()
+        // at construction), causing SaveChanges to emit UPDATE instead of INSERT.
         await unitOfWork.SaveChangesAsync(cancellationToken);
         cache.Remove(RegisterCachePrefix + request.ChallengeToken);
 
@@ -242,7 +245,6 @@ public class AdminAuthService(
         }
 
         credential.RecordSuccessfulAssertion(verifyResult.SignCount);
-        adminUsers.Update(admin);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         cache.Remove(LoginCachePrefix + request.ChallengeToken);
 
