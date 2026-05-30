@@ -19,7 +19,10 @@ public class AdminAuditFilter(
         try
         {
             var http = context.HttpContext;
-            var action = $"{http.Request.Method} {context.ActionDescriptor.DisplayName}";
+            var routeTemplate = context.ActionDescriptor.AttributeRouteInfo?.Template;
+            var action = routeTemplate is not null
+                ? $"{http.Request.Method} /{routeTemplate}"
+                : $"{http.Request.Method} {http.Request.Path}";
             var targetId = context.RouteData.Values.TryGetValue("id", out var id) ? id?.ToString() : null;
             var statusCode = http.Response.StatusCode != 0 ? http.Response.StatusCode : 200;
 

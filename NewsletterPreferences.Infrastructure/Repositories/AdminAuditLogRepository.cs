@@ -8,7 +8,15 @@ public class AdminAuditLogRepository(AppDbContext context) : IAdminAuditLogRepos
 {
     public async Task AddAsync(AdminAuditLog entry, CancellationToken cancellationToken = default)
     {
-        await context.AdminAuditLogs.AddAsync(entry, cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
+		try
+		{
+            await context.AdminAuditLogs.AddAsync(entry, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
+		catch (Exception)
+		{
+
+			throw;
+		}
     }
 }
